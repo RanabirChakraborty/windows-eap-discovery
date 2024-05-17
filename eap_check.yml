@@ -1,0 +1,85 @@
+---
+- name: Check EAP process on Windows machine
+  hosts: windows_hosts
+  vars_files: eap_check_vars.yml
+  tasks:
+    - name: Check if Java process is running
+      ansible.windows.win_command: tasklist /FI "IMAGENAME eq java.exe" /V
+      register: java_process_info
+      when:
+        - java_process_check
+        - java_process_check is defined
+
+    - name: Display Java process information
+      ansible.builtin.debug:
+        var: java_process_info.stdout_lines
+      when:
+        - java_process_check
+        - java_process_check is defined
+
+    - name: Discover JBOSS_HOME from environment variables
+      ansible.windows.win_command: echo %JBOSS_HOME%
+      register: jboss_home
+      when:
+        - jboss_home_check
+        - jboss_home_check is defined
+
+    - name: Check if JBOSS_HOME directory exists
+      ansible.windows.win_stat:
+        path: "{{ jboss_home.stdout }}"
+      register: jboss_home_stat
+      when:
+        - jboss_home_check
+        - jboss_home_check is defined
+
+    - name: Display JBOSS_HOME directory status
+      ansible.builtin.debug:
+        var: jboss_home_stat
+      when:
+        - jboss_home_check
+        - jboss_home_check is defined
+
+    - name: Extract EAP version from log file using PowerShell
+      ansible.windows.win_shell: |
+        $logFile = "{{ log_file_path }}"
+        try {
+          $content = Get-Content -Path $logFile -Raw -ErrorAction Stop
+          Write-Output $content
+        }
+        catch {
+          Write-Output "Unable to read file: $logFile"
+        }
+      register: log_file
+      when:
+        - eap_log_check
+        - eap_log_check is defined
+
+    - name: Find JBoss EAP version from decoded log content
+      set_fact:
+        jboss_eap_version: "{{ log_file.stdout_lines | regex_search('JBoss EAP (\\d+\\.\\d+\\.\\d+)', '\\1') }}"
+      when:
+        - eap_log_check
+        - eap_log_check is defined
+
+    - name: Display the JBoss EAP version
+      debug:
+        msg: "Found JBoss EAP version {{ jboss_eap_version }}"
+      when: jboss_eap_version is defined
+
+    - name: Check HTTP endpoint with authentication
+      ansible.windows.win_uri:
+        url: "http://{{ management_ip }}:{{ management_port }}"
+        method: GET
+        return_content: yes
+      register: http_response
+      when:
+        - management_port_check
+        - management_port_check is defined
+
+    - name: Check if HTTP endpoint if working.
+      debug:
+        msg: "HTTP Status Code is 200"
+      when:
+        - http_response.status_code == 200
+        - management_port_check
+        - management_port_check is defined

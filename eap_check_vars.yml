@@ -1,0 +1,8 @@
+---
+management_ip: 127.0.0.1
+management_port: 9990
+log_file_path: "C:\\Users\\hudson\\EAP-7.4.0\\standalone\\log\\server.log"
+java_process_check: true
+jboss_home_check: true
+eap_log_check: true
+management_port_check: true
